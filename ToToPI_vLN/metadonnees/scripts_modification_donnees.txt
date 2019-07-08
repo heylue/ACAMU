@@ -1,0 +1,214 @@
+/*-----------------------------------------------------------------------*/
+/*Sripts sqlite pour modifications diverses -----------------------------*/
+/*voir fichier "pbmOH_listes.xlsx" et "OH_modification_V2.ods"-----------*/
+/*Zenodo. https://doi.org/10.5281/zenodo.3256672 ------------------------*/
+/*L. Nahassia 2019 ------------------------------------------------------*/
+/*-----------------------------------------------------------------------*/
+
+/////////////
+Nettoyage des OH sur la base des des inconstistances relevées en automne 2015 et le tableau remplis par Emeline Marot
+voir pbmOH_listes.xlsx
+/////////////
+
+/* Travail uniquement sur table OH */
+/* OH = 1586i*/
+
+/* Infos NULL + V_USAGE NULL*/
+sélection > select * from OH where V_Usage ="0", 11 objets
+Supression > DELETE from OH where V_Usage ="0"
+/* OH = 1575i*/
+
+/* Pbms de dates (277)*/
+/* A/ supression
+OBJECTID =
+587
+482
+940
+1051
+1052
+1339
+1385
+1492 */
+
+Delete from OH where 
+PK_UID = 587 or
+PK_UID = 482 or
+PK_UID = 940 or
+PK_UID = 1051 or
+PK_UID = 1052 or
+PK_UID = 1339 or
+PK_UID = 1385 or
+PK_UID = 1492
+
+/*OH = 1567i*/
+
+/*B/ Bâtiments conservés : mettre "2015" en date de fin */s
+update OH 
+set disparitio = 2015
+where disparitio < apparition
+
+/*- 19 OH*/
+
+
+///////////////////////
+Création, suppressions, modifications diverses
+pour dédoublement : dupliquer l'objet, modifier les attributs, attribuer au deuxième objet un OH_NUM nouveau, préciser pour les deux en commentaire
+"première/deuxième partie du dédoublement de l'OH XX d'origine pour XX raison"
+voir le n° d'OH le plus grand dans la version 0 de ToToPI sans aucune modifications
+Rentrer commentaires sous QGIS + modifications attributs des duplicatas
+Pour les duplicatas les geoms sont ajoutées à la main à la fin
+
+voir fichier ""OH_modification_V2.ods".
+
+NUM_OH max = 2802
+/////////////////////
+
+-- Création à partir d'un BK OH_3geom_portees
+-- Garder les tables OH, OH_pt, OH_pl, OH_pg
+
+DROP table OH_pg_uniques;
+DROP table OH_pt_uniques;
+DROP table OH_pl_uniques;
+DROP table OH_3geom;
+
+
+--//B// Modification OHs concernées :
+
+-- Modification des attributs :
+
+UPDATE OH SET V_USAGE = 13 WHERE 
+OH_NUM = 1848 
+OR OH_NUM = 1849 
+OR OH_NUM = 256 
+OR OH_NUM = 401 
+OR OH_NUM = 258 
+OR OH_NUM = 410
+OR OH_NUM = 411;
+
+UPDATE OH SET V_USAGE = 30 WHERE 
+OH_NUM = 1783
+OR OH_NUM = 1879
+OR OH_NUM = 1964
+OR OH_NUM = 1965;
+
+UPDATE OH SET V_USAGE = 83 WHERE 
+OH_NUM = 602
+OR OH_NUM = 1864
+OR OH_NUM = 252;
+
+UPDATE OH SET REFERENCE = "Galinie et al. 1982" WHERE 
+OH_NUM = 252;
+
+UPDATE OH SET V_USAGE = 81 WHERE 
+OH_NUM = 238;
+
+
+UPDATE OH SET V_USAGE = 34 WHERE
+OH_NUM = 2709 
+OR OH_NUM = 1723;
+
+UPDATE OH SET PORTEE = 3 WHERE
+OH_NUM = 2709;
+
+UPDATE OH SET V_USAGE = 18 WHERE
+OH_NUM = 1487;
+
+UPDATE OH SET PORTEE = 2 WHERE
+OH_NUM = 1487;
+
+
+UPDATE OH SET PORTEE = 1 WHERE
+OH_NUM = 1858
+OR OH_NUM = 1859;
+
+-- Suppressions simples :
+
+DELETE FROM OH WHERE
+OH_NUM = 1533
+OR OH_NUM = 1517
+OR OH_NUM = 33
+-- Saint Martin :
+OR OH_NUM = 1520
+OR OH_NUM = 1522
+OR OH_NUM = 1523;
+
+
+-- dupplicatas et suppressions :
+-- création d'une table temporaire pour gérer les id uniques
+
+CREATE TABLE tmp AS SELECT * FROM OH;
+UPDATE tmp SET PK_UID = NULL;
+
+-- ajouts des lignes voulues > modifications des attributs sous QGIS
+INSERT INTO OH 
+SELECT * FROM tmp 
+WHERE 
+OH_NUM = 987
+OR OH_NUM = 15
+OR OH_NUM = 1480
+OR OH_NUM = 23
+WHERE OH_NUM  = 1859;
+
+-- suppression des lignes voulues
+DELETE FROM OH WHERE
+OH_NUM = 15
+OR OH_NUM = 104
+OR OH_NUM = 985
+OR OH_NUM = 987;
+
+-- suppression de la table tmp
+DROP TABLE tmp;
+
+
+-- //C// création des géométries pour les OH dupliquées
+
+-- ajouts des lignes ou simple copie de geom > modifications de l'OH_NUM sous QGIS
+
+CREATE TABLE tmp AS SELECT * FROM OH_pt;
+UPDATE tmp SET PK_UID = NULL;
+INSERT INTO OH_pt 
+SELECT * FROM tmp 
+WHERE 
+OH = 15
+OR OH = 1480
+OR OH = 23
+OR OH = 1859;
+DROP TABLE tmp;
+
+CREATE TABLE tmp AS SELECT * FROM OH_pg;
+UPDATE tmp SET PK_UID = NULL;
+INSERT INTO OH_pg
+SELECT * FROM tmp 
+WHERE 
+OH= 15
+OR OH = 1480
+OR OH= 23
+OR OH= 1859;
+DROP TABLE tmp;
+
+CREATE TABLE tmp AS SELECT * FROM OH_pl; -- ok en PL
+UPDATE tmp SET PK_UID = NULL;
+INSERT INTO OH_pl 
+SELECT * FROM tmp 
+WHERE 
+OH= 15
+OR OH = 1480
+OR OH= 23
+OR OH= 1859;
+DROP TABLE tmp;
+
+
+-- création de la géométrie pour OH 2804 (temple antique fusion de 3 géoms)
+INSERT INTO OH_pg (OH, Geometry)
+SELECT
+"2804",
+GUnion(
+(select Geometry from OH_pg where OH = 104),
+GUnion(
+(select Geometry from OH_pg where OH = 987),
+(select Geometry from OH_pg where OH = 985))
+);
+
+
+
+--//D// création des trois géoms et OH_ponctuels >> voir script_creation_3geom et OH_ponctuels

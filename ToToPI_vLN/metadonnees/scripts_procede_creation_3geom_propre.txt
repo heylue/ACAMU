@@ -1,0 +1,279 @@
+Procedé de création de 4 tables OH_3geom, OH_pt, OH_pl et OH_pg propres, sans doublons, pour traitement avec géométries les + riches, et sans OH_FETiser.
+
+/// Table de base :
+>Reprendre l'import dans spatialite_gui selon le procédé décrit dans script_creation_OH_points jusqu'au point //C// non inclus (suppression de tous les doublons faite)
+//OU
+>C/V une bdd de base propre (par ex OH_pg_pl_pt_base.sql) en ne gardant que les tables : 
+OH
+OH_pg
+OH_pl
+OH_pt
++ vacuum ;
+
+//''// Nettoyage des données OH (pbms de dates) selon nettoyage_donnees.txt
+1567i
+
+// Ajout portées
+
+//A// Suppression des géométries doublées en polygones, lignes et points (avec cet ordre de priorité).
+
+-- creation table (en view ne marche pas car déclaration geom_view fait buguer)
+CREATE TABLE OH_pg_uniques AS
+SELECT 
+a.OH_NUM as OH_NUM, 
+a.NOM as NOM,
+a.DESCRIPTEU as DESCRIPTEU,
+a.V_USAGE as V_USAGE,
+c.V_usage as NOM_USAGE,
+a.APPARITION as DATE_DEB,
+a.FIAB_APP as FIAB_APP,
+a.DISPARITIO as DATE_FIN,
+a.FIAB_DISP as FIAB_DISP,
+a.REFERENCE as REFERENCE,
+a.REMARQUES as REMARQUES,
+b.QGIS_ID as QGIS_ID,
+b.geometry as geometry
+FROM OH a JOIN OH_pg b on (a.OH_NUM=b.OH)
+		LEFT JOIN EF c ON (a.v_usage=c.Code_EF)
+GROUP BY a.OH_NUM;
+
+SELECT RecoverGeometryColumn('OH_pg_uniques', 'geometry',
+2154, 'MULTIPOLYGON', 'XY');
+ SELECT CreateSpatialIndex ('OH_pg_uniques', 'geometry');
+ 
+ /// NOMBRE DE LIGNE
+ OH_pg qui n'a pas d'OH correspondant ? YES
+ Donc 1067 polygones, mais 1066 OH correspondants // 1058 avec nettoyage
+
+ -- creation table pl_uniques depuis pl avec les OH qui existent dans pg en moins.
+CREATE TABLE OH_pl_uniques AS
+SELECT 
+a.OH_NUM as OH_NUM, 
+a.NOM as NOM,
+a.DESCRIPTEU as DESCRIPTEU,
+a.V_USAGE as V_USAGE,
+d.v_usage as NOM_USAGE,
+a.APPARITION as DATE_DEB,
+a.FIAB_APP as FIAB_APP,
+a.DISPARITIO as DATE_FIN,
+a.FIAB_DISP as FIAB_DISP,
+a.REFERENCE as REFERENCE,
+a.REMARQUES as REMARQUES,
+b.QGIS_ID as QGIS_ID,
+b.geometry as geometry
+FROM OH a JOIN OH_pl b ON (a.OH_NUM=b.OH) 
+		LEFT JOIN OH_pg c ON (a.OH_NUM = c.OH)
+		LEFT JOIN EF d ON (a.v_usage=d.Code_EF)
+WHERE c.OH is null
+;
+
+SELECT RecoverGeometryColumn('OH_pl_uniques', 'geometry',
+ 2154, 'MULTILINESTRING', 'XY');
+ SELECT CreateSpatialIndex ('OH_pl_uniques', 'geometry');
+
+ // 249-5 en commun = 244 objets / 242 avec nettoyage
+ 
+ -- creation table pt_uniques depuis pt avec les OH qui existent dans pg et pl en moins.
+Passer par une table intermédiaire
+	1.OH_pt_uniques - OH_pg en view
+	2.OH_pt_uniques - OH_pl
+	
+CREATE view tempo AS
+SELECT 
+a.OH_NUM as OH_NUM, 
+a.NOM as NOM,
+a.DESCRIPTEU as DESCRIPTEU,
+a.V_USAGE as V_USAGE,
+d.v_usage as NOM_USAGE,
+a.APPARITION as DATE_DEB,
+a.FIAB_APP as FIAB_APP,
+a.DISPARITIO as DATE_FIN,
+a.FIAB_DISP as FIAB_DISP,
+a.REFERENCE as REFERENCE,
+a.REMARQUES as REMARQUES,
+b.QGIS_ID as QGIS_ID,
+b.geometry as geometry
+FROM OH a JOIN OH_pt b ON (a.OH_NUM=b.OH) 
+		LEFT JOIN OH_pg c ON (a.OH_NUM = c.OH)
+		LEFT JOIN EF d ON (a.v_usage=d.Code_EF)
+WHERE c.OH is null
+;
+
+CREATE table OH_pt_uniques AS
+SELECT 
+a.OH_NUM as OH_NUM, 
+a.NOM as NOM,
+a.DESCRIPTEU as DESCRIPTEU,
+a.V_USAGE as V_USAGE,
+a.NOM_USAGE as NOM_USAGE,
+a.DATE_DEB as DATE_DEB,
+a.FIAB_APP as FIAB_APP,
+a.DATE_FIN as DATE_FIN,
+a.FIAB_DISP as FIAB_DISP,
+a.REFERENCE as REFERENCE,
+a.REMARQUES as REMARQUES,
+a.QGIS_ID as QGIS_ID,
+a.geometry as geometry
+FROM tempo a LEFT JOIN OH_pl c ON (a.OH_NUM = c.OH)
+WHERE c.OH is null
+GROUP BY OH_NUM; 
+--pbm du join sur lignes vides
+
+drop view tempo;
+
+SELECT RecoverGeometryColumn('OH_pt_uniques', 'geometry',
+2154, 'POINT', 'XY');
+ SELECT CreateSpatialIndex ('OH_pt_uniques', 'geometry');
+
+// 258 / 250 avec nettoyage
+
+select sum(val)
+from (
+  select count(*) val from oh_pl_uniques
+  union all
+  select count(*) val from oh_pt_uniques
+  union all
+  select count(*) val from oh_pg_uniques
+)
+===> 1568 OH / OK avec comptes !
+==>> 1550 OH avec nettoyage
+
+
+// B //
+Création d'un table avec toutes les OH et les geom correspondante dans 3 colonnes de geom
+> 1586 i dont 1568 avec une géométrie correspondante
+> avec nettoyage 1567i dont 1567 avec une géométrie correspondante
+
+
+// 
+
+CREATE table OH_3geom AS
+SELECT
+a.OH_NUM as OH_NUM, 
+a.NOM as NOM,
+a.DESCRIPTEU as DESCRIPTEU,
+a.V_USAGE as V_USAGE,
+b.v_usage as NOM_USAGE,
+a.APPARITION as DATE_DEB,
+a.FIAB_APP as FIAB_APP,
+a.DISPARITIO as DATE_FIN,
+a.FIAB_DISP as FIAB_DISP,
+a.REFERENCE as REFERENCE,
+a.REMARQUES as REMARQUES
+FROM OH a LEFT JOIN EF b ON (a.v_usage=b.Code_EF)
+GROUP BY a.OH_NUM;
+
+ALTER table OH_3geom
+ADD COLUMN geom_pt;
+UPDATE OH_3geom
+SET geom_pt = (SELECT geometry
+                       FROM OH_pt
+                       WHERE OH_NUM = OH_pt.OH);
+
+ALTER table OH_3geom
+ADD COLUMN geom_pg;
+UPDATE OH_3geom
+SET geom_pg = (SELECT geometry
+                       FROM OH_pg
+                       WHERE OH_NUM = OH_pg.OH);
+
+ALTER table OH_3geom
+ADD COLUMN geom_pl;
+UPDATE OH_3geom
+SET geom_pl = (SELECT geometry
+                       FROM OH_pl
+                       WHERE OH_NUM = OH_pl.OH);
+					   
+					
+SELECT RecoverGeometryColumn('OH_3geom', 'geom_pt',
+2154, 'POINT', 'XY');
+ 
+ SELECT CreateSpatialIndex ('OH_3geom', 'geom_pt');
+ 
+SELECT RecoverGeometryColumn('OH_3geom', 'geom_pl',
+ 2154, 'MULTILINESTRING', 'XY');
+ SELECT CreateSpatialIndex ('OH_3geom', 'geom_pl');
+
+ SELECT RecoverGeometryColumn('OH_3geom', 'geom_pg',
+ 2154, 'MULTIPOLYGON', 'XY');
+ SELECT CreateSpatialIndex ('OH_3geom', 'geom_pg');
+ 
+ 
+// C //
+Conversion des blob en WKT 
+
+// Pour 3geom
+ALTER table OH_3geom
+ADD COLUMN geom_pt_wkt;
+UPDATE OH_3geom
+SET geom_pt_wkt = ST_AsText(geom_pt);
+
+ALTER table OH_3geom
+ADD COLUMN geom_pg_wkt;
+UPDATE OH_3geom
+SET geom_pg_wkt = ST_AsText(geom_pg);
+
+ALTER table OH_3geom
+ADD COLUMN geom_pl_wkt;
+UPDATE OH_3geom
+SET geom_pl_wkt = ST_AsText(geom_pl);
+
+//Pour OH_pt_uniques, OH_pl_uniques, OH_pg_uniques
+
+ALTER table oh_pl_uniques
+ADD COLUMN geom_wkt;
+UPDATE oh_pl_uniques
+SET geom_wkt = ST_AsText(geometry);
+
+ALTER table oh_pt_uniques
+ADD COLUMN geom_wkt;
+UPDATE oh_pt_uniques
+SET geom_wkt = ST_AsText(geometry);
+
+ALTER table oh_pg_uniques
+ADD COLUMN geom_wkt;
+UPDATE oh_pg_uniques
+SET geom_wkt = ST_AsText(geometry);
+
+
+
+// D// 
+Ajout de la colonne OH_ponctuels
+par le menu "attach DB"
+
+CREATE TABLE OH_ponctuels AS
+SELECT 
+a.OH_NUM as OH_NUM, 
+a.NOM as NOM, 
+a.V_USAGE as V_USAGE, 
+a.NOM_USAGE as NOM_USAGE,
+b.PORTEE as PORTEE,
+a.DATE_DEB as DATE_DEB, 
+a.FIAB_APP as FIAB_APP,
+a.DATE_FIN as DATE_FIN,
+a.FIAB_DISP as FIAB_DISP,
+a.REFERENCE as REFERENCE,
+a.REMARQUES as REMARQUES,
+a.geometry as geometry,
+a.geom_wkt as geom_wkt
+FROM OH_points as a join OH as b on a.OH_NUM=b.OH_NUM;
+
+SELECT RecoverGeometryColumn('OH_ponctuels', 'geometry', 2154, 'POINT', 'XY');
+SELECT CreateSpatialIndex ('OH_ponctuels', 'geometry');
+
+Si besoin d'actualiser portees : 
+
+UPDATE OH_ponctuels
+SET PORTEE = (SELECT OH.portee
+			from OH
+			WHERE OH.OH_NUM = OH_ponctuels.OH_NUM)
+WHERE 
+	EXISTS (
+		SELECT * 
+		from OH
+		WHERE OH.OH_NUM = OH_ponctuels.OH_NUM);
+		
+detach database
+
+
+

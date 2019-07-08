@@ -1,0 +1,108 @@
+/*-----------------------------------------------------------------------*/
+/*Script sqlite pour ajout des portées aux OH----------------------------*/
+/*choix des portées renseigné dans le fichier "attribution_portee_OH.ods"*/
+/*Zenodo. https://doi.org/10.5281/zenodo.3256672 ------------------------*/
+/*L. Nahassia 2019 ------------------------------------------------------*/
+/*-----------------------------------------------------------------------*/
+
+/* importer le csv "num_OH" dans la bdd */
+ALTER table OH
+ADD COLUMN portee;
+
+UPDATE OH
+SET portee = 1;
+
+UPDATE OH 
+SET portee = 2 
+WHERE V_USAGE = 13 
+OR V_USAGE = 14 
+OR V_USAGE = 16
+OR V_USAGE = 17
+OR V_USAGE = 18
+OR V_USAGE = 19
+OR V_USAGE = 21
+OR V_USAGE = 22
+OR V_USAGE = 34
+OR V_USAGE = 36
+OR V_USAGE = 51
+OR V_USAGE = 52
+OR V_USAGE = 53
+OR V_USAGE = 65;
+
+UPDATE OH 
+SET portee = 3 
+WHERE V_USAGE = 15 
+OR V_USAGE = 35
+OR V_USAGE = 41;
+
+
+UPDATE OH
+SET portee = (SELECT portee_numoh.portee
+			from portee_numoh
+			WHERE portee_numoh.OH_NUM = OH.OH_NUM)
+WHERE 
+	EXISTS (
+		SELECT * 
+		from portee_numoh
+		WHERE portee_numoh.OH_NUM = OH.OH_NUM);
+
+/* JOIN sur OH_3geom */		
+
+ALTER table OH_3geom
+ADD COLUMN PORTEE;
+
+
+UPDATE OH_3geom
+SET PORTEE = (SELECT OH.portee
+			from OH
+			WHERE OH.OH_NUM = OH_3geom.OH_NUM)
+WHERE 
+	EXISTS (
+		SELECT * 
+		from OH
+		WHERE OH.OH_NUM = OH_3geom.OH_NUM);
+
+/* JOIN sur OH_pt_uniques */	
+
+ALTER table OH_pt_uniques
+ADD COLUMN PORTEE;
+	
+UPDATE OH_pt_uniques
+SET PORTEE = (SELECT OH.portee
+			from OH
+			WHERE OH.OH_NUM = OH_pt_uniques.OH_NUM)
+WHERE 
+	EXISTS (
+		SELECT * 
+		from OH
+		WHERE OH.OH_NUM = OH_pt_uniques.OH_NUM);
+
+/* JOIN sur OH_pg_uniques */	
+
+ALTER table OH_pg_uniques
+ADD COLUMN PORTEE;
+	
+UPDATE OH_pg_uniques
+SET PORTEE = (SELECT OH.portee
+			from OH
+			WHERE OH.OH_NUM = OH_pg_uniques.OH_NUM)
+WHERE 
+	EXISTS (
+		SELECT * 
+		from OH
+		WHERE OH.OH_NUM = OH_pg_uniques.OH_NUM);
+		
+/* JOIN sur OH_pl_uniques */	
+
+ALTER table OH_pl_uniques
+ADD COLUMN PORTEE;
+	
+UPDATE OH_pl_uniques
+SET PORTEE = (SELECT OH.portee
+			from OH
+			WHERE OH.OH_NUM = OH_pl_uniques.OH_NUM)
+WHERE 
+	EXISTS (
+		SELECT * 
+		from OH
+		WHERE OH.OH_NUM = OH_pl_uniques.OH_NUM);
